@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NovaTech Store — Dashboard en Vivo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f18; --card: #141720; --border: #1e2235;
+      --primary: #6366f1; --pdim: rgba(99,102,241,.12);
+      --accent: #22d3ee; --ok: #10b981; --warn: #f59e0b; --danger: #ef4444;
+      --text: #e2e8f0; --muted: #64748b; --subtle: #1e2940;
+    }
+    *{ margin:0; padding:0; box-sizing:border-box; }
+    body{ font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* ── SETUP SCREEN ── */
+    #setup{
+      position:fixed; inset:0; background:var(--bg);
+      display:flex; align-items:center; justify-content:center;
+      z-index:100; padding:20px;
+    }
+    .setup-box{
+      background:var(--card); border:1px solid var(--border);
+      border-radius:16px; padding:36px 40px; max-width:560px; width:100%;
+    }
+    .setup-logo{ font-size:32px; margin-bottom:14px; }
+    .setup-box h2{ font-size:20px; font-weight:700; color:#fff; margin-bottom:6px; }
+    .setup-box p{ font-size:13.5px; color:var(--muted); margin-bottom:24px; line-height:1.6; }
+    .step{
+      display:flex; gap:12px; margin-bottom:16px;
+      padding:12px 14px; background:var(--subtle); border-radius:10px;
+    }
+    .step-num{
+      width:24px; height:24px; border-radius:50%; background:var(--primary);
+      color:#fff; font-size:11px; font-weight:700; display:flex;
+      align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;
+    }
+    .step-body strong{ display:block; font-size:13px; color:#fff; margin-bottom:3px; }
+    .step-body span{ font-size:12px; color:var(--muted); }
+    .step-body code{
+      display:inline-block; background:rgba(99,102,241,.15); color:#a5b4fc;
+      font-size:11px; padding:2px 6px; border-radius:4px; font-family:monospace;
+      margin-top:4px;
+    }
+    .url-row{ display:flex; gap:8px; margin-top:20px; }
+    .url-row input{
+      flex:1; background:#0d0f18; border:1px solid var(--border);
+      border-radius:8px; padding:10px 14px; color:var(--text);
+      font-size:13px; outline:none;
+    }
+    .url-row input:focus{ border-color:var(--primary); }
+    .url-row input::placeholder{ color:var(--muted); }
+    .btn-connect{
+      background:var(--primary); color:#fff; border:none;
+      border-radius:8px; padding:10px 20px; font-size:13px;
+      font-weight:600; cursor:pointer; white-space:nowrap;
+    }
+    .btn-connect:hover{ background:#5153cc; }
+    #setup-error{ font-size:12px; color:var(--danger); margin-top:10px; display:none; }
+
+    /* ── DASHBOARD ── */
+    #dashboard{ display:none; padding:28px 32px; }
+    .header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
+    .brand{ display:flex; align-items:center; gap:10px; margin-bottom:5px; }
+    .brand-icon{ width:34px; height:34px; background:var(--primary); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+    .brand h1{ font-size:20px; font-weight:700; color:#fff; }
+    .period-badge{
+      display:inline-flex; align-items:center; gap:5px;
+      background:var(--pdim); border:1px solid rgba(99,102,241,.25);
+      border-radius:20px; padding:3px 11px; font-size:11.5px; color:#a5b4fc; font-weight:500;
+    }
+    .header-meta{ font-size:12px; color:var(--muted); }
+    .header-actions{ display:flex; gap:8px; align-items:center; }
+    .btn{ padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:500; cursor:pointer; border:none; transition:all .15s; }
+    .btn-sm{ padding:6px 12px; font-size:12px; }
+    .btn-outline{ background:transparent; border:1px solid var(--border); color:var(--muted); }
+    .btn-outline:hover{ border-color:var(--primary); color:var(--primary); }
+    .btn-primary{ background:var(--primary); color:#fff; }
+    .btn-primary:hover{ background:#5153cc; }
+    .status-dot{ width:7px; height:7px; border-radius:50%; background:var(--ok); display:inline-block; margin-right:5px; animation:pulse 2s infinite; }
+    @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .section-title{ font-size:13px; font-weight:600; color:#fff; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+    .section-title::after{ content:''; flex:1; height:1px; background:var(--border); }
+
+    .kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+    .kpi-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 20px; position:relative; overflow:hidden; }
+    .kpi-card::after{ content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:12px 12px 0 0; }
+    .kpi-card.c1::after{ background:var(--primary); }
+    .kpi-card.c2::after{ background:var(--accent); }
+    .kpi-card.c3::after{ background:var(--ok); }
+    .kpi-card.c4::after{ background:var(--warn); }
+    .kpi-label{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin-bottom:6px; }
+    .kpi-value{ font-size:30px; font-weight:800; color:#fff; letter-spacing:-1.5px; line-height:1; margin-bottom:8px; }
+    .kpi-sub{ font-size:11.5px; color:var(--muted); line-height:1.5; }
+    .kpi-tag{ display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; padding:2px 7px; border-radius:20px; margin-top:8px; }
+    .tag-up{ background:rgba(16,185,129,.1); color:var(--ok); }
+    .tag-down{ background:rgba(239,68,68,.1); color:var(--danger); }
+    .tag-neu{ background:rgba(245,158,11,.1); color:var(--warn); }
+
+    .row2{ display:grid; grid-template-columns:3fr 2fr; gap:14px; margin-bottom:20px; }
+    .row3{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+    .chart-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+    .chart-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+    .chart-head-title{ font-size:13.5px; font-weight:600; color:#fff; }
+    .chart-head-sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+    .cw{ position:relative; height:230px; }
+    .cw-sm{ position:relative; height:190px; }
+
+    .donut-legend{ margin-top:14px; display:flex; flex-direction:column; gap:7px; }
+    .dl-row{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
+    .dl-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .dl-val{ margin-left:auto; font-weight:600; color:var(--text); }
+
+    .prod-list{ list-style:none; margin-top:4px; }
+    .prod-item{ display:grid; grid-template-columns:22px 1fr auto auto; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .prod-item:last-child{ border-bottom:none; }
+    .prod-rank{ font-size:11px; font-weight:700; color:var(--muted); text-align:center; }
+    .prod-name{ font-size:13px; font-weight:500; color:var(--text); }
+    .prod-units{ font-size:11px; color:var(--muted); margin-top:2px; }
+    .prod-rev{ font-size:13px; font-weight:700; color:#fff; text-align:right; }
+    .prod-margin{ font-size:11px; color:var(--ok); text-align:right; margin-top:2px; }
+    .mbar{ width:52px; height:5px; background:var(--subtle); border-radius:3px; overflow:hidden; }
+    .mbar-fill{ height:100%; background:var(--ok); border-radius:3px; }
+
+    .vendors-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+    .vendor-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; }
+    .vendor-card.top-card{ border-color:rgba(99,102,241,.4); }
+    .v-av{ width:38px; height:38px; border-radius:50%; background:var(--pdim); border:1px solid rgba(99,102,241,.25); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#a5b4fc; margin-bottom:12px; }
+    .v-av.top-av{ background:var(--primary); color:#fff; border-color:var(--primary); }
+    .v-name{ font-size:13px; font-weight:600; color:#fff; }
+    .v-tag{ display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; background:rgba(245,158,11,.15); color:var(--warn); border-radius:4px; margin-left:5px; vertical-align:middle; }
+    .v-num{ font-size:28px; font-weight:800; color:#fff; letter-spacing:-1px; margin:6px 0 2px; }
+    .v-sub{ font-size:11px; color:var(--muted); margin-bottom:10px; }
+    .vbar{ height:4px; background:var(--subtle); border-radius:2px; overflow:hidden; }
+    .vbar-fill{ height:100%; background:var(--primary); border-radius:2px; }
+
+    .insights-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px; }
+    .insight{ display:flex; align-items:flex-start; gap:10px; padding:13px 15px; border-radius:10px; }
+    .insight.warn{ background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2); }
+    .insight.good{ background:rgba(16,185,129,.07); border:1px solid rgba(16,185,129,.2); }
+    .insight.info{ background:rgba(34,211,238,.07); border:1px solid rgba(34,211,238,.2); }
+    .insight-icon{ font-size:17px; flex-shrink:0; margin-top:1px; }
+    .insight-title{ font-size:13px; font-weight:600; color:#fff; margin-bottom:3px; }
+    .insight-desc{ font-size:11.5px; color:var(--muted); line-height:1.5; }
+
+    .footer{ text-align:center; font-size:11.5px; color:var(--muted); padding-top:18px; border-top:1px solid var(--border); }
+
+    /* Loading state */
+    #loading{ display:none; position:fixed; inset:0; background:var(--bg); z-index:50; align-items:center; justify-content:center; flex-direction:column; gap:14px; }
+    .spinner{ width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+    #loading p{ font-size:13px; color:var(--muted); }
+
+    #error-bar{ display:none; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:13px; color:var(--danger); }
+
+    @media print{
+      body{ background:#fff; color:#000; }
+      #setup,#loading,.header-actions{ display:none !important; }
+      .kpi-card,.chart-card,.vendor-card{ border-color:#ddd; background:#f9f9f9; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SETUP SCREEN ── -->
+<div id="setup">
+  <div class="setup-box">
+    <div class="setup-logo">⚡</div>
+    <h2>Conectar Google Sheets</h2>
+    <p>El dashboard se actualiza automáticamente desde tu hoja de cálculo cada vez que lo abres. Sigue estos pasos una sola vez:</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>Abre tu Google Sheet y ve a Archivo</strong>
+        <span>Selecciona <strong>Compartir → Publicar en la web</strong></span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Elige la hoja correcta y formato CSV</strong>
+        <span>Menú desplegable izquierdo: tu hoja · Menú derecho: <strong>Valores separados por comas (.csv)</strong><br>Haz clic en <strong>Publicar</strong> y confirma.</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Copia la URL que aparece</strong>
+        <span>Empieza con <code>https://docs.google.com/spreadsheets/d/e/...</code></span>
+      </div>
+    </div>
+
+    <div class="url-row">
+      <input type="text" id="url-input" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?output=csv" />
+      <button class="btn-connect" onclick="conectar()">Conectar</button>
+    </div>
+    <div id="setup-error">No se pudo conectar. Verifica que la URL sea correcta y que el Sheet esté publicado.</div>
+  </div>
+</div>
+
+<!-- ── LOADING ── -->
+<div id="loading" style="display:flex; display:none;">
+  <div class="spinner"></div>
+  <p>Cargando datos desde Google Sheets…</p>
+</div>
+
+<!-- ── DASHBOARD ── -->
+<div id="dashboard">
+  <div class="header">
+    <div>
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <h1 id="dash-title">NovaTech Store</h1>
+        <span class="period-badge" id="dash-period">● Cargando…</span>
+      </div>
+      <div class="header-meta"><span class="status-dot"></span>En vivo · <span id="dash-updated">—</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" onclick="recargar()">↺ Actualizar</button>
+      <button class="btn btn-outline btn-sm" onclick="cambiarSheet()">⚙ Sheet</button>
+      <button class="btn btn-outline btn-sm" onclick="window.print()">🖨 Imprimir</button>
+      <button class="btn btn-primary btn-sm" onclick="exportCSV()">⬇ CSV</button>
+    </div>
+  </div>
+
+  <div id="error-bar"></div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi-card c1">
+      <div class="kpi-label">Ventas Totales</div>
+      <div class="kpi-value" id="k-ventas">—</div>
+      <div class="kpi-sub" id="k-ventas-sub">—</div>
+      <div class="kpi-tag tag-up" id="k-ventas-tag">—</div>
+    </div>
+    <div class="kpi-card c2">
+      <div class="kpi-label">Total Pedidos</div>
+      <div class="kpi-value" id="k-pedidos">—</div>
+      <div class="kpi-sub" id="k-pedidos-sub">—</div>
+      <div class="kpi-tag tag-up" id="k-pedidos-tag">—</div>
+    </div>
+    <div class="kpi-card c3">
+      <div class="kpi-label">Ticket Promedio</div>
+      <div class="kpi-value" id="k-ticket">—</div>
+      <div class="kpi-sub" id="k-ticket-sub">—</div>
+      <div class="kpi-tag" id="k-ticket-tag">—</div>
+    </div>
+    <div class="kpi-card c4">
+      <div class="kpi-label">Clientes Activos</div>
+      <div class="kpi-value" id="k-clientes">—</div>
+      <div class="kpi-sub" id="k-clientes-sub">—</div>
+      <div class="kpi-tag tag-neu" id="k-clientes-tag">—</div>
+    </div>
+  </div>
+
+  <!-- Row 2 -->
+  <div class="row2">
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Ingresos Mensuales</div>
+          <div class="chart-head-sub">Ingresos ($) y ticket promedio por mes</div>
+        </div>
+      </div>
+      <div class="cw"><canvas id="chartIngresos"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Estado de Pedidos</div>
+          <div class="chart-head-sub">Distribución por estado</div>
+        </div>
+      </div>
+      <div class="cw-sm"><canvas id="chartEstado"></canvas></div>
+      <div class="donut-legend" id="estado-legend"></div>
+    </div>
+  </div>
+
+  <!-- Row 3 -->
+  <div class="row3">
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Top 5 Productos</div>
+          <div class="chart-head-sub">Por ingresos · margen estimado</div>
+        </div>
+      </div>
+      <ul class="prod-list" id="prod-list"></ul>
+    </div>
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Ventas por Categoría</div>
+          <div class="chart-head-sub">Ingresos acumulados</div>
+        </div>
+      </div>
+      <div class="cw"><canvas id="chartCat"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Vendors -->
+  <div class="section-title">Rendimiento por Vendedor</div>
+  <div class="vendors-grid" id="vendors-grid"></div>
+
+  <!-- Insights -->
+  <div class="section-title">Insights Clave</div>
+  <div class="insights-grid" id="insights-grid"></div>
+
+  <div class="footer" id="dash-footer">NovaTech Store · Dashboard en Vivo</div>
+</div>
+
+<script>
+  // ─── STORAGE ──────────────────────────────────────────────────────
+  const STORAGE_KEY = 'novatech_sheet_url';
+  let csvUrl = localStorage.getItem(STORAGE_KEY) || '';
+
+  // Chart instances
+  let ci, ce, cc;
+  // Raw data for CSV export
+  let _data = null;
+
+  // ─── CSV PARSER ───────────────────────────────────────────────────
+  function parseCSVRow(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i], nx = line[i+1];
+      if (ch === '"' && inQ && nx === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+  function parseCSV(text) {
+    return text.split('\n').map(parseCSVRow);
+  }
+
+  // ─── HELPERS ──────────────────────────────────────────────────────
+  const pm = s => parseFloat((s+'').replace(/[$, ]/g,'')) || 0;
+  const pp = s => parseFloat((s+'').replace('%','')) || 0;
+  const pn = s => parseFloat((s+'').replace(/,/g,'')) || 0;
+  const fmt$ = n => '$' + n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtK = n => n >= 1000 ? '$'+(n/1000).toFixed(1)+'k' : fmt$(n);
+  function initials(name) {
+    return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  }
+  function findSection(rows, marker) {
+    return rows.findIndex(r => r[0] && r[0].toLowerCase().includes(marker.toLowerCase()));
+  }
+
+  // ─── DATA EXTRACTION ──────────────────────────────────────────────
+  function extractData(rows) {
+    const d = {};
+
+    // KPIs (find header row "Ventas Totales", data is next row)
+    const kpiH = rows.findIndex(r => r[0] && r[0].includes('Ventas Totales'));
+    if (kpiH >= 0 && rows[kpiH+1]) {
+      const r = rows[kpiH+1];
+      d.kpis = {
+        ventas: pm(r[0]), pedidos: pn(r[2]), clientes: pn(r[4]),
+        ticket: pm(r[6]), completados: pn(r[8]), enProceso: pn(r[10]),
+        cancelados: pn(r[12]), inventario: pm(r[14])
+      };
+    }
+
+    // Monthly data
+    const miR = findSection(rows, 'INGRESOS');
+    if (miR >= 0) {
+      d.monthly = [];
+      for (let i = miR+2; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0] || r[0].toUpperCase() === 'TOTAL' || r[0].toUpperCase() === 'MES') continue;
+        if (!r[1]) break;
+        d.monthly.push({ mes:r[0], ingresos:pm(r[1]), pedidos:pn(r[2]), completados:pn(r[3]), cancelados:pn(r[4]), ticket:pm(r[5]) });
+        if (d.monthly.length >= 12) break;
+      }
+    }
+
+    // Products
+    const prR = findSection(rows, 'TOP 5 PRODUCTO');
+    if (prR >= 0) {
+      d.products = [];
+      for (let i = prR+2; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0] || !r[1] || !r[3]) break;
+        const n = pn(r[0]);
+        if (isNaN(n) || n === 0) break;
+        d.products.push({ rank:n, name:r[1], units:pn(r[2]), revenue:pm(r[3]), margin:pp(r[4]) });
+        if (d.products.length >= 5) break;
+      }
+    }
+
+    // Categories
+    const catR = findSection(rows, 'VENTAS POR CATEGOR');
+    if (catR >= 0) {
+      d.categories = [];
+      for (let i = catR+2; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0] || !r[2]) break;
+        d.categories.push({ name:r[0], units:pn(r[1]), revenue:pm(r[2]), pct:pp(r[3]) });
+        if (d.categories.length >= 10) break;
+      }
+    }
+
+    // Vendors
+    const vendR = findSection(rows, 'RENDIMIENTO POR VENDEDOR');
+    if (vendR >= 0) {
+      d.vendors = [];
+      for (let i = vendR+2; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r[0]) break;
+        d.vendors.push({ name:r[0], clients:pn(r[1]), sales:pn(r[2]), pct:pp(r[3]) });
+        if (d.vendors.length >= 10) break;
+      }
+    }
+
+    return d;
+  }
+
+  // ─── TREND BADGE ──────────────────────────────────────────────────
+  function trendBadge(curr, prev, prefix) {
+    if (!prev || prev === 0) return { cls:'tag-neu', text: prefix ? prefix : '—' };
+    const pct = ((curr - prev) / prev * 100).toFixed(1);
+    if (curr >= prev) return { cls:'tag-up', text:`▲ ${pct}% vs mes anterior` };
+    return { cls:'tag-down', text:`▼ ${Math.abs(pct)}% vs mes anterior` };
+  }
+
+  // ─── RENDER ───────────────────────────────────────────────────────
+  function renderDashboard(d) {
+    _data = d;
+    const k = d.kpis || {};
+    const monthly = d.monthly || [];
+    const lastMonth = monthly[monthly.length-1] || {};
+    const prevMonth = monthly[monthly.length-2] || {};
+
+    // Period
+    const meses = monthly.map(m=>m.mes);
+    document.getElementById('dash-period').textContent = meses.length > 1
+      ? `● ${meses[0]} – ${meses[meses.length-1]} ${new Date().getFullYear()}`
+      : '● Datos cargados';
+    document.getElementById('dash-updated').textContent =
+      'Actualizado ' + new Date().toLocaleString('es-EC',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+
+    // KPI 1: Ventas
+    document.getElementById('k-ventas').textContent = k.ventas ? fmtK(k.ventas) : '—';
+    document.getElementById('k-ventas-sub').textContent = k.inventario ? `Inventario: ${fmt$(k.inventario)}` : '—';
+    const tv = trendBadge(lastMonth.ingresos, prevMonth.ingresos);
+    setTag('k-ventas-tag', tv.cls, tv.text);
+
+    // KPI 2: Pedidos
+    document.getElementById('k-pedidos').textContent = k.pedidos || '—';
+    document.getElementById('k-pedidos-sub').textContent =
+      k.completados ? `${k.completados} completados · ${k.enProceso} en proceso · ${k.cancelados} cancelados` : '—';
+    const tasaExito = k.pedidos ? (k.completados/k.pedidos*100).toFixed(1) : 0;
+    setTag('k-pedidos-tag', 'tag-up', `▲ ${tasaExito}% tasa de éxito`);
+
+    // KPI 3: Ticket
+    document.getElementById('k-ticket').textContent = k.ticket ? fmt$(k.ticket) : '—';
+    const ticketRange = monthly.length
+      ? `Rango: ${fmt$(Math.min(...monthly.map(m=>m.ticket)))} – ${fmt$(Math.max(...monthly.map(m=>m.ticket)))}` : '—';
+    document.getElementById('k-ticket-sub').textContent = ticketRange;
+    const tt = trendBadge(lastMonth.ticket, prevMonth.ticket);
+    setTag('k-ticket-tag', tt.cls, tt.text);
+
+    // KPI 4: Clientes
+    document.getElementById('k-clientes').textContent = k.clientes || '—';
+    document.getElementById('k-clientes-sub').textContent =
+      k.pedidos && k.clientes ? `Prom. ${(k.pedidos/k.clientes).toFixed(1)} pedidos/cliente` : '—';
+    setTag('k-clientes-tag', 'tag-neu', `● ${k.clientes} clientes activos`);
+
+    // Chart: Ingresos Mensuales
+    const ingData  = monthly.map(m=>m.ingresos);
+    const tickData = monthly.map(m=>m.ticket);
+    const labels   = monthly.map(m=>m.mes);
+    if (ci) ci.destroy();
+    ci = new Chart(document.getElementById('chartIngresos'), {
+      data: {
+        labels,
+        datasets: [
+          { type:'bar', label:'Ingresos ($)', data:ingData,
+            backgroundColor: ingData.map((_,i,a) => i===a.length-1 ? 'rgba(99,102,241,0.75)' : 'rgba(99,102,241,0.45)'),
+            borderColor:'#6366f1', borderWidth:1, borderRadius:6, yAxisID:'y' },
+          { type:'line', label:'Ticket Prom. ($)', data:tickData,
+            borderColor:'#22d3ee', backgroundColor:'rgba(34,211,238,0.08)',
+            pointBackgroundColor:'#22d3ee', pointBorderColor:'#0d0f18', pointBorderWidth:2,
+            pointRadius:5, tension:0.35, fill:false, yAxisID:'y1' }
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ labels:{ boxWidth:10, padding:16 } },
+          tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${fmt$(ctx.raw)}` } } },
+        scales:{
+          y:{ position:'left', ticks:{ callback: v => '$'+(v/1000).toFixed(0)+'k' } },
+          y1:{ position:'right', grid:{drawOnChartArea:false}, ticks:{ callback: v => '$'+v } }
+        }
+      }
+    });
+
+    // Chart: Estado Pedidos
+    const comp = k.completados||0, enp = k.enProceso||0, canc = k.cancelados||0;
+    const total = comp + enp + canc || 1;
+    if (ce) ce.destroy();
+    ce = new Chart(document.getElementById('chartEstado'), {
+      type:'doughnut',
+      data:{ labels:['Completados','En Proceso','Cancelados'],
+        datasets:[{ data:[comp,enp,canc], backgroundColor:['#10b981','#6366f1','#ef4444'], borderColor:'#141720', borderWidth:4, hoverOffset:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'70%',
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.raw} (${(ctx.raw/total*100).toFixed(1)}%)` } } } }
+    });
+    document.getElementById('estado-legend').innerHTML = [
+      ['#10b981','Completados',comp],['#6366f1','En Proceso',enp],['#ef4444','Cancelados',canc]
+    ].map(([c,l,v]) => `<div class="dl-row"><div class="dl-dot" style="background:${c}"></div><span>${l}</span><span class="dl-val">${v} — ${(v/total*100).toFixed(1)}%</span></div>`).join('');
+
+    // Products list
+    const maxMargin = Math.max(...(d.products||[]).map(p=>p.margin)||[100]);
+    document.getElementById('prod-list').innerHTML = (d.products||[]).map((p,i) => {
+      const isTop = p.margin === maxMargin;
+      return `<li class="prod-item">
+        <span class="prod-rank">#${p.rank}</span>
+        <div><div class="prod-name">${p.name}</div><div class="prod-units">${p.units} unidades</div></div>
+        <div class="prod-right"><div class="prod-rev">${fmt$(p.revenue)}</div><div class="prod-margin" style="${isTop?'color:#22d3ee':''}">${p.margin}% margen${isTop?' ★':''}</div></div>
+        <div class="mbar"><div class="mbar-fill" style="width:${p.margin}%;${isTop?'background:#22d3ee':''}"></div></div>
+      </li>`;
+    }).join('');
+
+    // Chart: Categorías
+    const cats = d.categories || [];
+    const catColors = ['#6366f1','#22d3ee','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#64748b','#f97316','#06b6d4'];
+    if (cc) cc.destroy();
+    cc = new Chart(document.getElementById('chartCat'), {
+      type:'bar',
+      data:{ labels: cats.map(c=>c.name), datasets:[{ label:'Ingresos ($)', data:cats.map(c=>c.revenue), backgroundColor:cats.map((_,i)=>catColors[i%catColors.length]), borderRadius:4, borderWidth:0 }] },
+      options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${fmt$(ctx.raw)}` } } },
+        scales:{ x:{ ticks:{ callback: v => '$'+(v/1000).toFixed(0)+'k' } } } }
+    });
+
+    // Vendors
+    const vendors = d.vendors || [];
+    const maxSales = Math.max(...vendors.map(v=>v.sales), 1);
+    document.getElementById('vendors-grid').innerHTML = vendors.map(v => {
+      const isTop = v.sales === maxSales;
+      return `<div class="vendor-card ${isTop?'top-card':''}">
+        <div class="v-av ${isTop?'top-av':''}">${initials(v.name)}</div>
+        <div class="v-name">${v.name}${isTop?'<span class="v-tag">TOP</span>':''}</div>
+        <div class="v-num">${v.sales}</div>
+        <div class="v-sub">ventas · ${v.clients} clientes asignados</div>
+        <div class="vbar"><div class="vbar-fill" style="width:${(v.sales/maxSales*100).toFixed(0)}%"></div></div>
+      </div>`;
+    }).join('');
+
+    // Insights
+    buildInsights(d);
+
+    // Footer
+    document.getElementById('dash-footer').textContent =
+      `NovaTech Store · Dashboard en Vivo · ${new Date().toLocaleDateString('es-EC',{day:'numeric',month:'long',year:'numeric'})}`;
+  }
+
+  function setTag(id, cls, text) {
+    const el = document.getElementById(id);
+    el.className = 'kpi-tag ' + cls;
+    el.textContent = text;
+  }
+
+  // ─── AUTO INSIGHTS ────────────────────────────────────────────────
+  function buildInsights(d) {
+    const insights = [];
+    const monthly = d.monthly || [];
+    const k = d.kpis || {};
+
+    // Drop month
+    if (monthly.length >= 2) {
+      const last = monthly[monthly.length-1], prev = monthly[monthly.length-2];
+      if (last.ingresos < prev.ingresos) {
+        const drop = ((prev.ingresos - last.ingresos)/prev.ingresos*100).toFixed(1);
+        insights.push({ type:'warn', icon:'⚠', title:`Caída en ${last.mes}`, desc:`Los ingresos bajaron ${drop}% respecto a ${prev.mes} (${fmt$(last.ingresos)} vs ${fmt$(prev.ingresos)}). El ticket promedio también cayó a ${fmt$(last.ticket)}.` });
+      } else if (last.ingresos > prev.ingresos) {
+        const rise = ((last.ingresos - prev.ingresos)/prev.ingresos*100).toFixed(1);
+        insights.push({ type:'good', icon:'✓', title:`Recuperación en ${last.mes}`, desc:`Los ingresos subieron ${rise}% respecto a ${prev.mes} (${fmt$(last.ingresos)} vs ${fmt$(prev.ingresos)}).` });
+      }
+    }
+
+    // Top category
+    if (d.categories && d.categories.length > 0) {
+      const top = d.categories[0];
+      insights.push({ type:'good', icon:'✓', title:`${top.name} lidera el catálogo`, desc:`Con ${fmt$(top.revenue)} en ingresos (${top.pct}% del total), es la categoría dominante del período.` });
+    }
+
+    // Best margin product
+    if (d.products && d.products.length > 0) {
+      const best = [...d.products].sort((a,b)=>b.margin-a.margin)[0];
+      insights.push({ type:'info', icon:'◆', title:`${best.name}: mayor margen`, desc:`Margen estimado de ${best.margin}% con ${best.units} unidades vendidas. Es el producto más rentable del top 5.` });
+    }
+
+    // Cancellation rate
+    if (k.pedidos && k.cancelados) {
+      const rate = (k.cancelados/k.pedidos*100).toFixed(1);
+      if (parseFloat(rate) > 8) {
+        insights.push({ type:'warn', icon:'⚠', title:'Tasa de cancelación elevada', desc:`${rate}% de los pedidos fueron cancelados (${k.cancelados} de ${k.pedidos}). Revisar causas.` });
+      }
+    }
+
+    // Show max 3
+    document.getElementById('insights-grid').innerHTML = insights.slice(0,3).map(ins =>
+      `<div class="insight ${ins.type}">
+        <div class="insight-icon">${ins.icon}</div>
+        <div><div class="insight-title">${ins.title}</div><div class="insight-desc">${ins.desc}</div></div>
+      </div>`
+    ).join('');
+  }
+
+  // ─── EXPORT CSV ───────────────────────────────────────────────────
+  function exportCSV() {
+    if (!_data) return;
+    const rows = [['Mes','Ingresos','Pedidos','Completados','Cancelados','Ticket Promedio']];
+    (_data.monthly||[]).forEach(m => rows.push([m.mes, m.ingresos, m.pedidos, m.completados, m.cancelados, m.ticket]));
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})), download:'novatech_datos.csv' });
+    a.click();
+  }
+
+  // ─── FETCH & INIT ─────────────────────────────────────────────────
+  async function cargarDatos(url) {
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('error-bar').style.display = 'none';
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      const rows = parseCSV(text);
+      const data = extractData(rows);
+      if (!data.kpis && !data.monthly) throw new Error('No se encontraron datos. Verifica que el Sheet tenga el formato correcto.');
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      renderDashboard(data);
+    } catch (e) {
+      document.getElementById('loading').style.display = 'none';
+      const errBar = document.getElementById('error-bar');
+      errBar.style.display = 'block';
+      errBar.textContent = `Error al cargar datos: ${e.message}. Asegúrate de que el Sheet esté publicado y la URL sea correcta.`;
+      document.getElementById('setup').style.display = 'flex';
+      document.getElementById('setup-error').style.display = 'block';
+      document.getElementById('setup-error').textContent = `No se pudo conectar: ${e.message}`;
+      throw e;
+    }
+  }
+
+  function conectar() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return;
+    localStorage.setItem(STORAGE_KEY, url);
+    csvUrl = url;
+    cargarDatos(url);
+  }
+
+  function recargar() {
+    if (csvUrl) cargarDatos(csvUrl);
+  }
+
+  function cambiarSheet() {
+    localStorage.removeItem(STORAGE_KEY);
+    csvUrl = '';
+    document.getElementById('setup').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('setup-error').style.display = 'none';
+    document.getElementById('url-input').value = '';
+  }
+
+  // Auto-init if URL saved
+  if (csvUrl) {
+    cargarDatos(csvUrl);
+  } else {
+    document.getElementById('setup').style.display = 'flex';
+  }
+</script>
+</body>
+</html>
